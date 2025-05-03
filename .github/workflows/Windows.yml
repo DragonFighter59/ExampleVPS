@@ -1,4 +1,4 @@
-name: CI
+name: CI-Windows
 
 on: [push]
 
@@ -49,13 +49,16 @@ jobs:
     - name: Upload Minecraft folder from Desktop
       shell: powershell
       run: |
-        $path = "C:\Users\runneradmin\Desktop\Minecraft"
+        $path = "C:\Users\$Env:WIN_USERNAME\Desktop\Minecraft"
         if (Test-Path $path) {
           Write-Host "Uploading Minecraft folder..."
         } else {
           Write-Host "WARNING: Cartella Minecraft NON trovata. Nessun upload."
         }
       continue-on-error: true
+      env:
+        WIN_USERNAME: ${{ secrets.WIN_USERNAME }}
+        WIN_PASS: ${{ secrets.WIN_PASS }}
 
     - name: See extensions file
       continue-on-error: true
@@ -64,12 +67,12 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'HideFileExt' -Value 0
         Stop-Process -Name explorer -Force
 
-
     - name: Move to Desktop if artifact exists
       shell: powershell
+      
       run: |
         $source = "C:\Temp\MinecraftArtifact"
-        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
+        $destination = "C:\Users\$Env:WIN_USERNAME\Desktop\Minecraft"
     
         if (Test-Path $source) {
           if (Test-Path $destination) {
@@ -80,6 +83,9 @@ jobs:
         } else {
           Write-Host "Minecraft artifact not found. Skipping move step."
         }
+      env:
+        WIN_USERNAME: ${{ secrets.WIN_USERNAME }}
+        
 
     - name: Start ngrok tunnel in background
       shell: powershell
@@ -94,10 +100,12 @@ jobs:
     - name: Wait for stopVPS.inf file to continue
       run: |
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
-          while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
+          while (-not (Test-Path "C:\Users\$Env:WIN_USERNAME\Desktop\stopVPS.inf")) {
             Start-Sleep -Seconds 10
           }
           Write-Host "stopVPS.inf found, continuing..."
+      env:
+        WIN_USERNAME: ${{ secrets.WIN_USERNAME }}
 
     - name: Kill ngrok tunnel
       run: |
@@ -108,4 +116,6 @@ jobs:
       if: success()
       with:
         name: desktop-minecraft
-        path: C:\Users\runneradmin\Desktop\Minecraft
+        path: C:\Users\$Env:WIN_USERNAME\Desktop\Minecraft
+      env:
+        WIN_USERNAME: ${{ secrets.WIN_USERNAME }}
