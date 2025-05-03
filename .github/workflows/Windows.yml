@@ -1,0 +1,107 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - name: Download
+      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+    - name: Extract
+      run: |
+        Expand-Archive ngrok.zip
+        Write-Host "Current Folder $PWD"
+    - name: Auth
+      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        
+    - name: Enable TS
+      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+    
+    - name: Variabili d'ambiente! Importante
+      run: echo ("APPDATA_DIR=" + $env:APPDATA) >> $env:GITHUB_ENV
+      #working-directory: ${{ github.workspace }}
+
+    - name: Set up JDK 21 (Temurin)
+      uses: actions/setup-java@v4
+      continue-on-error: true
+      with:
+        distribution: 'oracle'  # Distribuzione del JDK
+        java-version: '21'       # Versione precisa
+
+    - name: Install Notepad++
+      continue-on-error: true
+      run: choco install notepadplusplus -y
+      shell: powershell
+
+
+    - name: Upload Minecraft folder from Desktop
+      shell: powershell
+      run: |
+        $path = "C:\Users\runneradmin\Desktop\Minecraft"
+        if (Test-Path $path) {
+          Write-Host "Uploading Minecraft folder..."
+        } else {
+          Write-Host "WARNING: Cartella Minecraft NON trovata. Nessun upload."
+        }
+      continue-on-error: true
+
+    - name: See extensions file
+      continue-on-error: true
+      shell: powershell
+      run: |
+        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'HideFileExt' -Value 0
+        Stop-Process -Name explorer -Force
+
+
+    - name: Move to Desktop if artifact exists
+      shell: powershell
+      run: |
+        $source = "C:\Temp\MinecraftArtifact"
+        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
+    
+        if (Test-Path $source) {
+          if (Test-Path $destination) {
+            Remove-Item -Recurse -Force $destination
+          }
+          Move-Item -Path $source -Destination $destination
+          Write-Host "Minecraft folder moved to Desktop"
+        } else {
+          Write-Host "Minecraft artifact not found. Skipping move step."
+        }
+
+    - name: Start ngrok tunnel in background
+      shell: powershell
+      run: |
+        $ngrokPath = "$PWD\ngrok\ngrok.exe"
+        $ngrokArgs = "tcp 3389"
+        Write-Host "Starting ngrok..."
+        $ngrokProcess = Start-Process -FilePath $ngrokPath -ArgumentList $ngrokArgs -WindowStyle Hidden -PassThru
+        Write-Host "ngrok started with PID $($ngrokProcess.Id)"
+
+
+    - name: Wait for stopVPS.inf file to continue
+      run: |
+          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
+          while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
+            Start-Sleep -Seconds 10
+          }
+          Write-Host "stopVPS.inf found, continuing..."
+
+    - name: Kill ngrok tunnel
+      run: |
+          Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
+
+    - name: Upload Minecraft folder from Desktop
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: desktop-minecraft
+        path: C:\Users\runneradmin\Desktop\Minecraft
