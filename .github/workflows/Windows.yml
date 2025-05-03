@@ -39,35 +39,21 @@ jobs:
         distribution: 'oracle'  # Distribuzione del JDK
         java-version: '21'       # Versione precisa
 
-    - name: Install Notepad++
-      continue-on-error: true
-      run: choco install notepadplusplus -y
-      shell: powershell
+  #  - name: Install Notepad++
+  #    continue-on-error: true
+  #    run: choco install notepadplusplus -y
+  #    shell: powershell
 
 
-    - name: Upload Minecraft folder from Desktop
-      shell: powershell
-      run: |
-        $path = "C:\Users\runneradmin\Desktop\Minecraft"
-        if (Test-Path $path) {
-          Write-Host "Uploading Minecraft folder..."
-        } else {
-          Write-Host "WARNING: Cartella Minecraft NON trovata. Nessun upload."
-        }
-      continue-on-error: true
-      env:
-        WIN_PASS: ${{ secrets.WIN_PASS }}
-
-    - name: See extensions file
-      continue-on-error: true
-      shell: powershell
-      run: |
-        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'HideFileExt' -Value 0
-        Stop-Process -Name explorer -Force
+    - name: Download Minecraft artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: desktop-minecraft
+        path: C:\Temp\MinecraftArtifact
+      continue-on-error: false
 
     - name: Move to Desktop if artifact exists
       shell: powershell
-      
       run: |
         $source = "C:\Temp\MinecraftArtifact"
         $destination = "C:\Users\runneradmin\Desktop\Minecraft"
@@ -81,7 +67,15 @@ jobs:
         } else {
           Write-Host "Minecraft artifact not found. Skipping move step."
         }
+      continue-on-error: true
         
+
+    - name: See extensions file
+      continue-on-error: true
+      shell: powershell
+      run: |
+        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'HideFileExt' -Value 0
+        Stop-Process -Name explorer -Force
         
 
     - name: Start ngrok tunnel in background
