@@ -93,6 +93,8 @@ jobs:
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
           while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
             Start-Sleep -Seconds 10
+            # TO DO: Fare che cerca tramite api se ngrok e acceso o no e avviarlo
+            # e anche fai un modo per un file o simile per spegnere il PC anche senza entrare nella vps con un check ip
           }
           Write-Host "stopVPS.inf found, continuing..."
         
