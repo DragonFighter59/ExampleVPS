@@ -91,18 +91,12 @@ jobs:
     - name: Wait for stopVPS.inf file or remote Gist to continue
       shell: powershell
       run: |
-          # Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
-          # while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
-          # Start-Sleep -Seconds 10
-            # TO DO: Fare che cerca tramite api se ngrok e acceso o no e avviarlo
-            # e anche fai un modo per un file o simile per spegnere il PC anche senza entrare nella vps con un check ip
-          # }
-          # Write-Host "stopVPS.inf found, continuing..."
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
           $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=GHSAT0AAAAAADDERST2KORXP3FGFRUSCQOU2A57QFA"
 
-          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat or remote Gist for shutdown trigger..."
-
+          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
+          Write-Host "Waiting for remote Gist for shutdown trigger..."
+          
           while ($true) {
             $shouldStop = $false
 
