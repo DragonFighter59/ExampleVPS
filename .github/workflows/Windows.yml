@@ -88,16 +88,51 @@ jobs:
         Write-Host "ngrok started with PID $($ngrokProcess.Id)"
 
 
-    - name: Wait for stopVPS.inf file to continue
+    - name: Wait for stopVPS.inf file or remote Gist to continue
+      shell: powershell
       run: |
-          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
-          while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
-            Start-Sleep -Seconds 10
+          # Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat!..."
+          # while (-not (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf")) {
+          # Start-Sleep -Seconds 10
             # TO DO: Fare che cerca tramite api se ngrok e acceso o no e avviarlo
             # e anche fai un modo per un file o simile per spegnere il PC anche senza entrare nella vps con un check ip
+          # }
+          # Write-Host "stopVPS.inf found, continuing..."
+          $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
+          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=GHSAT0AAAAAADDERST2KORXP3FGFRUSCQOU2A57QFA"
+
+          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat or remote Gist for shutdown trigger..."
+
+          while ($true) {
+            $shouldStop = $false
+
+            # Check local file
+            if (Test-Path $localPath) {
+              Write-Host "Found local file stopVPS.inf"
+              $shouldStop = $true
+            }
+
+            # Check remote Gist
+            try {
+              $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
+              if ($response.Content.Trim().ToLower() -eq "stop") {
+                Write-Host "Remote Gist says 'stop'"
+                $shouldStop = $true
+              } else {
+                Write-Host "Remote Gist content: $($response.Content.Trim())"
+              }
+            } catch {
+              Write-Host "Error fetching Gist: $_"
+            }
+
+            if ($shouldStop) {
+              break
+            }
+
+            Start-Sleep -Seconds 10
           }
-          Write-Host "stopVPS.inf found, continuing..."
-        
+
+          Write-Host "Shutdown condition met. Proceeding..."
 
     - name: Kill ngrok tunnel
       run: |
