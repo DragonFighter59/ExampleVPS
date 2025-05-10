@@ -65,6 +65,7 @@ jobs:
           Move-Item -Path $source -Destination $destination
           Write-Host "Minecraft folder moved to Desktop"
         } else {
+          New-Item -ItemType Directory -Path $destination
           Write-Host "Minecraft artifact not found. Skipping move step."
         }
       continue-on-error: true
