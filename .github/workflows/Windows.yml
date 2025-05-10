@@ -94,37 +94,33 @@ jobs:
       run: |
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
           # Another Idea to Shutdown VPS with public or private Repository
-          # $remoteUrl = "https://raw.githubusercontent.com/<USER>/<REPOSITORY_NAME>/refs/heads/main/vps-control.txt?token=$Env:REPOSITORY_TOKEN"
-          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/EcampleVPS_Control/refs/heads/main/vps-control.txt?nocache=1"
+          $remoteUrl = "https://pastebin.com/raw/qUKECE5Y"
           
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
-          Write-Host "Waiting for remote Gist for shutdown trigger..."
+          Write-Host "Waiting for remote Pastebin for shutdown trigger..."
           
           while ($true) {
             $shouldStop = $false
 
-            # Check local file
+            # 1. Check local file
             if (Test-Path $localPath) {
               Write-Host "Found local file stopVPS.inf"
               $shouldStop = $true
             }
-
-
-
-            # Check remote Drive
-            $remoteUrl = "https://drive.google.com/uc?export=download&id=1NRKXjQiSDGekEJ4jft-O43FPh1jh0WP9"
-
+            
+            # 2. Controlla il contenuto da Pastebin
             try {
               $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
               $content = $response.Content.Trim().ToLower()
+
               if ($content -eq "stop") {
-                Write-Host "Google Drive says STOP"
+                Write-Host "Pastebin dice STOP"
                 $shouldStop = $true
               }
             } catch {
-              Write-Host "Error fetching from Google Drive: $_"
+              Write-Host "Errore nel recupero da Pastebin: $_"
             }
-
+            
             if ($shouldStop) {
               break
             }
