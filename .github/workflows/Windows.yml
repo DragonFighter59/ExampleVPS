@@ -36,7 +36,7 @@ jobs:
       uses: actions/setup-java@v4
       continue-on-error: true
       with:
-        distribution: 'oracle'  # Distribuzione del JDK
+        distribution: 'temurin'  # Distribuzione del JDK
         java-version: '21'       # Versione precisa
 
   #  - name: Install Notepad++
@@ -93,7 +93,7 @@ jobs:
       shell: powershell
       run: |
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
-          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=GHSAT0AAAAAADDERST2KORXP3FGFRUSCQOU2A57QFA"
+          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/ExampleVPS/refs/heads/main/vps-control.txt"
 
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
           Write-Host "Waiting for remote Gist for shutdown trigger..."
