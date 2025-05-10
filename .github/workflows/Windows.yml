@@ -109,24 +109,27 @@ jobs:
               $shouldStop = $true
             }
 
-            # Check remote Gist
+
+
+            # Check remote Drive
+            $remoteUrl = "https://drive.google.com/uc?export=download&id=1NRKXjQiSDGekEJ4jft-O43FPh1jh0WP9"
+
             try {
               $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
-              if ($response.Content.Trim().ToLower() -eq "stop") {
-                Write-Host "Remote Gist says 'stop'"
+              $content = $response.Content.Trim().ToLower()
+              if ($content -eq "stop") {
+                Write-Host "Google Drive says STOP"
                 $shouldStop = $true
-              }# else {
-              #  Write-Host "Remote Gist content: $($response.Content.Trim())"
-              #}
+              }
             } catch {
-              Write-Host "Error fetching Gist: $_"
+              Write-Host "Error fetching from Google Drive: $_"
             }
 
             if ($shouldStop) {
               break
             }
 
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 60
           }
 
           Write-Host "Shutdown condition met. Proceeding..."
