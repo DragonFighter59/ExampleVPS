@@ -93,7 +93,7 @@ jobs:
       shell: powershell
       run: |
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
-          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/ExampleVPS/refs/heads/main/vps-control.txt"
+          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=$Env:REPOSITORY_TOKEN"
 
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
           Write-Host "Waiting for remote Gist for shutdown trigger..."
@@ -128,6 +128,8 @@ jobs:
           }
 
           Write-Host "Shutdown condition met. Proceeding..."
+      env:
+        REPOSITORY_TOKEN: ${{ secrets.REPOSITORY_TOKEN }}
 
     - name: Kill ngrok tunnel
       run: |
