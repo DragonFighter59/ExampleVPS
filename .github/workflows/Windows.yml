@@ -94,6 +94,8 @@ jobs:
       run: |
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
           $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=$Env:REPOSITORY_TOKEN"
+          
+
 
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
           Write-Host "Waiting for remote Gist for shutdown trigger..."
@@ -113,9 +115,9 @@ jobs:
               if ($response.Content.Trim().ToLower() -eq "stop") {
                 Write-Host "Remote Gist says 'stop'"
                 $shouldStop = $true
-              } else {
-                Write-Host "Remote Gist content: $($response.Content.Trim())"
-              }
+              }# else {
+              #  Write-Host "Remote Gist content: $($response.Content.Trim())"
+              #}
             } catch {
               Write-Host "Error fetching Gist: $_"
             }
