@@ -93,10 +93,10 @@ jobs:
       shell: powershell
       run: |
           $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
-          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/LicenceManager/refs/heads/main/vps-control.txt?token=$Env:REPOSITORY_TOKEN"
+          # Another Idea to Shutdown VPS with public or private Repository
+          # $remoteUrl = "https://raw.githubusercontent.com/<USER>/<REPOSITORY_NAME>/refs/heads/main/vps-control.txt?token=$Env:REPOSITORY_TOKEN"
+          $remoteUrl = "https://raw.githubusercontent.com/DragonFighter59/EcampleVPS_Control/refs/heads/main/vps-control.txt"
           
-
-
           Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
           Write-Host "Waiting for remote Gist for shutdown trigger..."
           
