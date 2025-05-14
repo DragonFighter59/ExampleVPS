@@ -97,14 +97,15 @@ jobs:
       shell: powershell
       run: |
         Start-Sleep -Seconds 5
-        $url = Invoke-RestMethod -Uri http://127.0.0.1:4040/api/tunnels | jq.exe -r '.tunnels[0].public_url'
+        $response = Invoke-WebRequest -Uri http://127.0.0.1:4040/api/tunnels
+        $json = $response.Content | Out-String
+        $url = echo $json | .\jq.exe -r '.tunnels[0].public_url'
         Write-Host "Indirizzo ngrok per RDP (copialo nel tuo client):"
         Write-Host $url
         Write-Host ""
         Write-Host "Accesso:"
         Write-Host "Username: runneradmin"
         Write-Host "Password: (vedi secret WIN_PASS)"
-
 
     - name: Wait for stopVPS.inf file or remote Gist to continue
       shell: powershell
