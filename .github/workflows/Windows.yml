@@ -89,6 +89,23 @@ jobs:
         Write-Host "ngrok started with PID $($ngrokProcess.Id)"
 
 
+    - name: Install jq for Windows
+      run: |
+        Invoke-WebRequest -Uri https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe -OutFile jq.exe
+
+    - name: Stampa l'URL ngrok nella console (Windows)
+      shell: powershell
+      run: |
+        Start-Sleep -Seconds 5
+        $url = Invoke-RestMethod -Uri http://127.0.0.1:4040/api/tunnels | jq.exe -r '.tunnels[0].public_url'
+        Write-Host "Indirizzo ngrok per RDP (copialo nel tuo client):"
+        Write-Host $url
+        Write-Host ""
+        Write-Host "Accesso:"
+        Write-Host "Username: runneradmin"
+        Write-Host "Password: (vedi secret WIN_PASS)"
+
+
     - name: Wait for stopVPS.inf file or remote Gist to continue
       shell: powershell
       run: |
@@ -125,7 +142,7 @@ jobs:
               break
             }
 
-            Start-Sleep -Seconds 60
+            Start-Sleep -Seconds 40
           }
 
           Write-Host "Shutdown condition met. Proceeding..."
