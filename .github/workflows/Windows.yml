@@ -130,6 +130,7 @@ jobs:
             try {
               $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
               $content = $response.Content.Trim().ToLower()
+              
               Write-Host "Pastebin content: $content"
               
               if ($content -eq "stop") {
