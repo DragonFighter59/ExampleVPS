@@ -146,7 +146,7 @@ jobs:
 
             Start-Sleep -Seconds 40
           }
-
+          
           Write-Host "Shutdown condition met. Proceeding..."
       env:
         REPOSITORY_TOKEN: ${{ secrets.REPOSITORY_TOKEN }}
