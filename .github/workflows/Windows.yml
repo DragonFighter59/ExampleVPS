@@ -128,15 +128,23 @@ jobs:
             
             # 2. Controlla il contenuto da Pastebin
             try {
-              $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
+              #$response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
+              $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache" }
+
               $content = $response.Content.Trim().ToLower()
               
-              Write-Host "Pastebin content: $content"
-              
-              if ($content -eq "stop") {
+              # Write-Host "Pastebin content: $content"
+              Write-Host "Raw Pastebin content: '$($response.Content)'"
+  
+              if ($content -like "*stop*") {
                 Write-Host "Pastebin dice STOP"
                 $shouldStop = $true
               }
+
+              #if ($content -eq "stop") {
+              #  Write-Host "Pastebin dice STOP"
+              #  $shouldStop = $true
+              #}
             } catch {
               Write-Host "Errore nel recupero da Pastebin: $_"
             }
