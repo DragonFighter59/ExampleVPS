@@ -16,12 +16,14 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_windows_amd64.msi" -OutFile ghcli.msi
         Start-Process msiexec.exe -Wait -ArgumentList '/i', 'ghcli.msi', '/quiet'
 
-    - name: Autenticazione GitHub CLI
+    - name: Autenticazione con token personalizzato
       shell: pwsh
       run: |
-        echo $env:GITHUB_TOKEN | gh auth login --with-token
+        Remove-Item Env:\GITHUB_TOKEN
+        echo $env:GH_PAT | gh auth login --with-token
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_PAT: ${{ secrets.GH_PAT }}
+
 
 
     - name: Try to download current run's artifact
