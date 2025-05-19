@@ -43,20 +43,23 @@ jobs:
           echo "found=false" >> $env:GITHUB_ENV
         }
       shell: powershell
-
-    - name: Fallback - Download most recent successful run artifact
-      if: env.found == 'false'
+    
+    - name: Scarica artifact Minecraft da run completati con successo
+      shell: pwsh
       run: |
-        # $runs = gh run list --limit 20 --json databaseId,status,conclusion -q "[?conclusion=='success'].databaseId"
-        $runs = gh run list --limit 20 --json databaseId,status,conclusion -q '.[] | select(.conclusion=="success") | .databaseId'
+        $runsRaw = gh run list --limit 20 --json databaseId,status,conclusion -q '.[] | select(.conclusion=="success") | .databaseId'
+        $runs = $runsRaw -split "`n"  # Divide in righe
+
         foreach ($id in $runs) {
-          gh run download $id -n desktop-minecraft -D "C:\Temp\MinecraftArtifact" 2>$null
-          if (Test-Path "C:\Temp\MinecraftArtifact") {
-            Write-Host "Artifact found in run ID $id"
-            break
+        $id = $id.Trim()
+          if (-not [string]::IsNullOrWhiteSpace($id)) {
+            gh run download $id -n desktop-minecraft -D "C:\Temp\MinecraftArtifact" 2>$null
+            if (Test-Path "C:\Temp\MinecraftArtifact") {
+              Write-Host "✅ Artifact trovato nel run ID $id"
+              break
+            }
           }
         }
-      shell: powershell
 
     - name: Move to Desktop if artifact exists
       run: |
