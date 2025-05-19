@@ -26,9 +26,6 @@ jobs:
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
 
-
-
-
     - name: Try to download current run's artifact
       id: current_run_artifact
       uses: actions/download-artifact@v4
