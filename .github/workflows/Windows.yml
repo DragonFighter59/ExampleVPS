@@ -16,13 +16,16 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_windows_amd64.msi" -OutFile ghcli.msi
         Start-Process msiexec.exe -Wait -ArgumentList '/i', 'ghcli.msi', '/quiet'
 
-    - name: Autenticazione con token personalizzato
+    - name: Autenticazione con GitHub CLI via GH_PAT
       shell: pwsh
       run: |
-        Remove-Item Env:\GITHUB_TOKEN
+        if (Test-Path Env:\GITHUB_TOKEN) {
+          Remove-Item Env:\GITHUB_TOKEN
+        }
         echo $env:GH_PAT | gh auth login --with-token
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
+
 
 
 
