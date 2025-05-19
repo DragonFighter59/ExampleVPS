@@ -8,6 +8,71 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    
+    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install GitHub CLI
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_windows_amd64.msi" -OutFile ghcli.msi
+        Start-Process msiexec.exe -Wait -ArgumentList '/i', 'ghcli.msi', '/quiet'
+
+    - name: Authenticate GitHub CLI
+      run: |
+        gh auth login --with-token < <(echo $env:GITHUB_TOKEN)
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Try to download current run's artifact
+      id: current_run_artifact
+      uses: actions/download-artifact@v4
+      continue-on-error: true
+      with:
+        name: desktop-minecraft
+        path: C:\Temp\MinecraftArtifact
+
+    - name: Check if artifact was downloaded
+      id: check_artifact
+      run: |
+        if (Test-Path "C:\Temp\MinecraftArtifact") {
+          echo "found=true" >> $env:GITHUB_ENV
+        } else {
+          echo "found=false" >> $env:GITHUB_ENV
+        }
+      shell: powershell
+
+    - name: Fallback - Download most recent successful run artifact
+      if: env.found == 'false'
+      run: |
+        $runs = gh run list --limit 20 --json databaseId,status,conclusion -q "[?conclusion=='success'].databaseId"
+        foreach ($id in $runs) {
+          gh run download $id -n desktop-minecraft -D "C:\Temp\MinecraftArtifact" 2>$null
+          if (Test-Path "C:\Temp\MinecraftArtifact") {
+            Write-Host "Artifact found in run ID $id"
+            break
+          }
+        }
+      shell: powershell
+
+    - name: Move to Desktop if artifact exists
+      run: |
+        $source = "C:\Temp\MinecraftArtifact"
+        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
+        if (Test-Path $source) {
+          if (Test-Path $destination) {
+            Remove-Item -Recurse -Force $destination
+          }
+          Move-Item -Path $source -Destination $destination
+        }
+      shell: powershell
+
+# CONTINUA CON IL RESTO: ngrok, TS, RDP, attesa file stopVPS.inf, ecc.
+
+
+
+
+    
     - name: Download
       run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
     - name: Extract
@@ -44,31 +109,37 @@ jobs:
   #    run: choco install notepadplusplus -y
   #    shell: powershell
 
+#    - name: Upload Minecraft folder from Desktop
+#        uses: actions/upload-artifact@v4
+#        if: success()
+#        with:
+#        name: desktop-minecraft
+#        path: C:\Users\runneradmin\Desktop\Minecraft
 
-    - name: Download Minecraft artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: desktop-minecraft
-        path: C:\Temp\MinecraftArtifact
-      continue-on-error: true
+#    - name: Download Minecraft artifact
+#      uses: actions/download-artifact@v4
+#      with:
+#        name: desktop-minecraft
+#        path: C:\Temp\MinecraftArtifact
+#      continue-on-error: true
 
-    - name: Move to Desktop if artifact exists
-      shell: powershell
-      run: |
-        $source = "C:\Temp\MinecraftArtifact"
-        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
-    
-        if (Test-Path $source) {
-          if (Test-Path $destination) {
-            Remove-Item -Recurse -Force $destination
-          }
-          Move-Item -Path $source -Destination $destination
-          Write-Host "Minecraft folder moved to Desktop"
-        } else {
-          New-Item -ItemType Directory -Path $destination
-          Write-Host "Minecraft artifact not found. Skipping move step."
-        }
-      continue-on-error: true
+#    - name: Move to Desktop if artifact exists
+#      shell: powershell
+#      run: |
+#        $source = "C:\Temp\MinecraftArtifact"
+#        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
+#    
+#        if (Test-Path $source) {
+#          if (Test-Path $destination) {
+#            Remove-Item -Recurse -Force $destination
+#          }
+#          Move-Item -Path $source -Destination $destination
+#          Write-Host "Minecraft folder moved to Desktop"
+#        } else {
+#          New-Item -ItemType Directory -Path $destination
+#          Write-Host "Minecraft artifact not found. Skipping move step."
+#        }
+#      continue-on-error: true
         
 
     - name: See extensions file
