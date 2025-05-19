@@ -50,7 +50,8 @@ jobs:
     - name: Fallback - Download most recent successful run artifact
       if: env.found == 'false'
       run: |
-        $runs = gh run list --limit 20 --json databaseId,status,conclusion -q "[?conclusion=='success'].databaseId"
+        # $runs = gh run list --limit 20 --json databaseId,status,conclusion -q "[?conclusion=='success'].databaseId"
+        $runs = gh run list --limit 20 --json databaseId,status,conclusion -q '.[] | select(.conclusion=="success") | .databaseId'
         foreach ($id in $runs) {
           gh run download $id -n desktop-minecraft -D "C:\Temp\MinecraftArtifact" 2>$null
           if (Test-Path "C:\Temp\MinecraftArtifact") {
