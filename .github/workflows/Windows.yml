@@ -18,8 +18,8 @@ jobs:
     - name: Autenticazione con GitHub CLI via GH_PAT
       shell: pwsh
       run: |
-        if (Test-Path Env:\GITHUB_TOKEN) {
-          Remove-Item Env:\GITHUB_TOKEN
+        if (Test-Path Env:\G_TOKEN) {
+          Remove-Item Env:\G_TOKEN
         }
         echo $env:GH_PAT | gh auth login --with-token
       env:
