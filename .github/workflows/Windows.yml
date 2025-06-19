@@ -192,12 +192,13 @@ jobs:
 
             $counter++
             $remaining = $maxAttempts - $counter
-            
+            $sleepSeconds = 40
+            $minutesLeft = [math]::Ceiling(($remaining * $sleepSeconds) / 60)
+
             # 2. Controlla il contenuto da Pastebin
             # 510 * 40 = 20.400 secondi = circa 5 ore e 40 minuti
             
             if ($remaining -le 20 -and -not $shouldStop) {
-                $minutesLeft = [math]::Ceiling(($remaining * $sleepSeconds) / 60)
                 Write-Host "⏳ [WARNING] Tempo rimanente: circa $minutesLeft minuti..."
             } else {
                 Write-Host "⏳ [INFO] Tempo rimanente: circa $minutesLeft minuti..."
