@@ -15,24 +15,15 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_windows_amd64.msi" -OutFile ghcli.msi
         Start-Process msiexec.exe -Wait -ArgumentList '/i', 'ghcli.msi', '/quiet'
 
-#    - name: Autenticazione con GitHub CLI via GH_PAT
-#      shell: pwsh
-#      run: |
-#        if (Test-Path Env:\G_TOKEN) {
-#          Remove-Item Env:\G_TOKEN
-#        }
-#        echo $env:GH_PAT | gh auth login --with-token
-#      env:
-#        GH_PAT: ${{ secrets.GH_PAT }}
-
-    - name: Imposta variabile GH_TOKEN per GitHub CLI
+    - name: Autenticazione con GitHub CLI via GH_PAT
       shell: pwsh
-      env:
-        GH_TOKEN: ${{ secrets.GH_PAT }}
       run: |
-        # Solo controllo versione o info repo per testare che funziona
-        gh --version
-        gh repo view $env:GITHUB_REPOSITORY
+        if (Test-Path Env:\G_TOKEN) {
+          Remove-Item Env:\G_TOKEN
+        }
+        echo $env:GH_PAT | gh auth login --with-token
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
 
 
     - name: Try to download current run's artifact
