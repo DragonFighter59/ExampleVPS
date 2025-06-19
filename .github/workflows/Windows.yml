@@ -28,7 +28,7 @@ jobs:
     - name: Imposta variabile GH_TOKEN per GitHub CLI
       shell: pwsh
       env:
-        GH_TOKEN: ${{ secrets.G_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_PAT }}
       run: |
         # Solo controllo versione o info repo per testare che funziona
         gh --version
