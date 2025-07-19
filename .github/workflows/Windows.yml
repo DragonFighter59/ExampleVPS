@@ -1,241 +1,124 @@
-name: CI-Windows
+name: Minecraft Remote Desktop with Google Drive Sync
 on: [push]
 
 jobs:
-  build:
-
+  remote-desktop:
     runs-on: windows-latest
 
     steps:
+    # 1. Setup base
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install GitHub CLI
-      run: |
-        Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_windows_amd64.msi" -OutFile ghcli.msi
-        Start-Process msiexec.exe -Wait -ArgumentList '/i', 'ghcli.msi', '/quiet'
-
-#    - name: Autenticazione con GitHub CLI via GH_PAT
-#      shell: pwsh
-#      run: |
-#        if (Test-Path Env:\G_TOKEN) {
-#          Remove-Item Env:\G_TOKEN
-#        }
-#        echo $env:GH_PAT | gh auth login --with-token
-#      env:
-#        GH_PAT: ${{ secrets.GH_PAT }}
-
-    - name: Autenticazione con GitHub CLI via GH_PAT
-      shell: pwsh
-      run: |
-        echo $env:GH_PAT | gh auth login --hostname github.com --with-token
-        gh auth status
-        gh auth setup-git
-      env:
-        GH_PAT: ${{ secrets.GH_PAT }}
-
-
-    - name: Try to download current run's artifact
-      id: current_run_artifact
-      uses: actions/download-artifact@v4
-      continue-on-error: true
-      with:
-        name: desktop-minecraft
-        path: C:\Temp\MinecraftArtifact
-
-    - name: Check if artifact was downloaded
-      id: check_artifact
-      run: |
-        if (Test-Path "C:\Temp\MinecraftArtifact") {
-          echo "found=true" >> $env:GITHUB_ENV
-        } else {
-          echo "found=false" >> $env:GITHUB_ENV
-        }
+    # 2. Install rclone per Google Drive sync
+    - name: Install and configure rclone
       shell: powershell
-    
-    - name: Scarica artifact Minecraft da run completati con successo
-      shell: pwsh
       run: |
-        $runsRaw = gh run list --limit 20 --json databaseId,status,conclusion -q '.[] | select(.conclusion=="success") | .databaseId'
-        $runs = $runsRaw -split "`n"  # Divide in righe
-
-        foreach ($id in $runs) {
-        $id = $id.Trim()
-          if (-not [string]::IsNullOrWhiteSpace($id)) {
-            gh run download $id -n desktop-minecraft -D "C:\Temp\MinecraftArtifact" 2>$null
-            if (Test-Path "C:\Temp\MinecraftArtifact") {
-              Write-Host "✅ Artifact trovato nel run ID $id"
-              break
-            }
-          }
-        }
-
-    - name: Move to Desktop if artifact exists
-      run: |
-        $source = "C:\Temp\MinecraftArtifact"
-        $destination = "C:\Users\runneradmin\Desktop\Minecraft"
-        if (Test-Path $source) {
-          if (Test-Path $destination) {
-            Remove-Item -Recurse -Force $destination
-          }
-          Move-Item -Path $source -Destination $destination
-        }
-      shell: powershell
-
-
-    - name: Download
-      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-    - name: Extract
-      run: |
-        Expand-Archive ngrok.zip
-        Write-Host "Current Folder $PWD"
-    - name: Auth
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        # Install
+        Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile rclone.zip
+        Expand-Archive rclone.zip -DestinationPath rclone-temp
+        Move-Item -Path "rclone-temp\rclone-*-windows-amd64\rclone.exe" -Destination "C:\Windows\System32\"
         
-    - name: Enable TS
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "$Env:WIN_PASS" -Force)
+        # Config
+        $config = @"
+        [gdrive]
+        type = drive
+        client_id = $env:RCLONE_CLIENT_ID
+        client_secret = $env:RCLONE_CLIENT_SECRET
+        token = $env:RCLONE_TOKEN
+        "@
+        $config | Out-File "$env:APPDATA\rclone\rclone.conf"
       env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        RCLONE_CLIENT_ID: ${{ secrets.RCLONE_CLIENT_ID }}
+        RCLONE_CLIENT_SECRET: ${{ secrets.RCLONE_CLIENT_SECRET }}
+        RCLONE_TOKEN: ${{ secrets.RCLONE_TOKEN }}
+
+    # 3. Download Minecraft da Google Drive
+    - name: Sync from Google Drive
+      shell: powershell
+      run: |
+        $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        rclone sync gdrive:MinecraftBackup $localPath --create-empty-src-dirs --progress
+        Get-ChildItem $localPath | Format-Table Name, Length, LastWriteTime
+
+    # 4. Setup Remote Desktop
+    - name: Configure RDP access
+      shell: powershell
+      run: |
+        # Enable RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # Set password
+        $user = "runneradmin"
+        $password = ConvertTo-SecureString $env:WIN_PASS -AsPlainText -Force
+        Set-LocalUser -Name $user -Password $password
+      env:
         WIN_PASS: ${{ secrets.WIN_PASS }}
+
+    # 5. Ngrok tunnel
+    - name: Setup ngrok
+      shell: powershell
+      run: |
+        # Download and extract
+        Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip
         
-    - name: Variabili d'ambiente! Importante
-      run: echo ("APPDATA_DIR=" + $env:APPDATA) >> $env:GITHUB_ENV
-      #working-directory: ${{ github.workspace }}
+        # Auth and start
+        .\ngrok\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
+        Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
-    - name: Set up JDK 21 (Temurin)
-      uses: actions/setup-java@v4
-      continue-on-error: true
-      with:
-        distribution: 'temurin'  # Distribuzione del JDK
-        java-version: '21'       # Versione precisa
-
-  #  - name: Install Notepad++
-  #    continue-on-error: true
-  #    run: choco install notepadplusplus -y
-  #    shell: powershell
-
-    - name: See extensions file
-      continue-on-error: true
+    # 6. Show connection info
+    - name: Get RDP connection details
       shell: powershell
       run: |
-        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'HideFileExt' -Value 0
-        Stop-Process -Name explorer -Force
-        
-
-    - name: Start ngrok tunnel in background
-      shell: powershell
-      run: |
-        $ngrokPath = "$PWD\ngrok\ngrok.exe"
-        $ngrokArgs = "tcp 3389"
-        Write-Host "Starting ngrok..."
-        $ngrokProcess = Start-Process -FilePath $ngrokPath -ArgumentList $ngrokArgs -WindowStyle Hidden -PassThru
-        Write-Host "ngrok started with PID $($ngrokProcess.Id)"
-
-
-    - name: Install jq for Windows
-      run: |
-        Invoke-WebRequest -Uri https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe -OutFile jq.exe
-
-    - name: Stampa l'URL ngrok nella console (Windows)
-      shell: powershell
-      continue-on-error: true
-      run: |
-        Start-Sleep -Seconds 5
-        $response = Invoke-WebRequest -Uri http://127.0.0.1:4040/api/tunnels
-        $json = $response.Content | Out-String
-        $url = echo $json | .\jq.exe -r '.tunnels[0].public_url'
-        Write-Host "Indirizzo ngrok per RDP (copialo nel tuo client):"
-        Write-Host $url
-        Write-Host ""
-        Write-Host "Accesso:"
+        Start-Sleep -Seconds 10
+        $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
+        $rdpUrl = $tunnels.tunnels[0].public_url -replace "tcp://", ""
+        Write-Host "=== RDP CONNECTION INFO ==="
+        Write-Host "Address: $($rdpUrl.Split(':')[0])"
+        Write-Host "Port: $($rdpUrl.Split(':')[1])"
         Write-Host "Username: runneradmin"
-        Write-Host "Password: (vedi secret WIN_PASS)"
+        Write-Host "Password: ${{ secrets.WIN_PASS }}"
 
-    - name: Wait for stopVPS.inf file or remote Gist to continue
+    # 7. Wait for shutdown signal
+    - name: Wait for termination
       shell: powershell
       run: |
-          $localPath = "C:\Users\runneradmin\Desktop\stopVPS.inf"
-          # Another Idea to Shutdown VPS with public or private Repository
-          $remoteUrl = "https://pastebin.com/raw/qUKECE5Y"
-          
-          Write-Host "Waiting for stopVPS.inf to appear on Desktop of click stopVPS.bat "
-          Write-Host "Waiting for remote Pastebin for shutdown trigger..."
-
-          
-
-          $counter = 0
-          $maxAttempts = 510
-          
-          while ($true) {
-            $shouldStop = $false
-
-            # 1. Check local file
-            if (Test-Path $localPath) {
-              Write-Host "Found local file stopVPS.inf"
-              $shouldStop = $true
+        $maxDuration = 6 * 60 * 60  # 6 ore in secondi
+        $interval = 30
+        $elapsed = 0
+        
+        while ($elapsed -lt $maxDuration) {
+            # Controllo file locale
+            if (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf") {
+                Write-Host "Found shutdown file"
+                break
             }
             
-            # 2. Controlla il contenuto da Pastebin
+            # Controllo remoto (esempio con Pastebin)
             try {
-              #$response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing
-              $response = Invoke-WebRequest -Uri $remoteUrl -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache" }
-
-              $content = $response.Content.Trim().ToLower()
-              
-              # Write-Host "Pastebin content: $content"
-              # Write-Host "Raw Pastebin content: '$($response.Content)'"
-  
-              if ($content -like "*stop*") {
-                Write-Host "Pastebin dice STOP"
-                $shouldStop = $true
-              }
-
-             
-            } catch {
-              Write-Host "Errore nel recupero da Pastebin: $_"
-            }
+                $content = (Invoke-WebRequest -Uri "https://pastebin.com/raw/qUKECE5Y" -UseBasicParsing).Content
+                if ($content -match "stop") { break }
+            } catch { Write-Host "Pastebin check failed: $_" }
             
+            Start-Sleep -Seconds $interval
+            $elapsed += $interval
+            Write-Host "Elapsed: $elapsed/$maxDuration seconds"
+        }
 
-            $counter++
-            $remaining = $maxAttempts - $counter
-            $sleepSeconds = 40
-            $minutesLeft = [math]::Ceiling(($remaining * $sleepSeconds) / 60)
-
-            # 2. Controlla il contenuto da Pastebin
-            # 510 * 40 = 20.400 secondi = circa 5 ore e 40 minuti
-            
-            if ($remaining -le 20 -and -not $shouldStop) {
-                Write-Host "⏳ [WARNING] Tempo rimanente: circa $minutesLeft minuti..."
-            } else {
-                Write-Host "⏳ [INFO] Tempo rimanente: circa $minutesLeft minuti..."
-            }
-            
-            if ($counter -ge $maxAttempts) {
-                Write-Host "⚠️ Raggiunto limite massimo di tempo, con $maxAttempts controlli. Forzo lo shutdown per salvare i dati."
-                $shouldStop = $true
-            }
-
-            if ($shouldStop) {
-              break
-            }
-
-            Start-Sleep -Seconds 40
-          }
-          
-          Write-Host "Shutdown condition met. Proceeding..."
-
-    - name: Kill ngrok tunnel
+    # 8. Cleanup and sync back to Google Drive
+    - name: Final sync to Google Drive
+      if: always()
+      shell: powershell
       run: |
-          Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
-
-    - name: Upload Minecraft folder from Desktop
-      uses: actions/upload-artifact@v4
-      if: success()
-      with:
-        name: desktop-minecraft
-        path: C:\Users\runneradmin\Desktop\Minecraft
+        # Stop ngrok
+        Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
+        
+        # Sync Minecraft folder
+        $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        if (Test-Path $localPath) {
+            rclone sync $localPath gdrive:MinecraftBackup --progress --create-empty-src-dirs
+        }
