@@ -10,24 +10,28 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2. Install rclone per Google Drive sync
-    - name: Install and configure rclone
+    - name: Configure rclone
       shell: powershell
       run: |
-        # Install
-        Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile rclone.zip
-        Expand-Archive rclone.zip -DestinationPath rclone-temp
-        Move-Item -Path "rclone-temp\rclone-*-windows-amd64\rclone.exe" -Destination "C:\Windows\System32\"
+        # Crea la directory se non esiste
+        $configDir = "$env:APPDATA\rclone"
+        if (-not (Test-Path $configDir)) {
+          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        }
         
-        # Config
-        $config = @"
+        # Crea il file di configurazione
+        $rcloneConfig = @"
         [gdrive]
         type = drive
         client_id = $env:RCLONE_CLIENT_ID
         client_secret = $env:RCLONE_CLIENT_SECRET
         token = $env:RCLONE_TOKEN
         "@
-        $config | Out-File "$env:APPDATA\rclone\rclone.conf"
+        $rcloneConfig | Out-File -FilePath "$configDir\rclone.conf" -Encoding utf8
+    
+        # Verifica
+        Get-Content "$configDir\rclone.conf"
+        rclone about gdrive:
       env:
         RCLONE_CLIENT_ID: ${{ secrets.RCLONE_CLIENT_ID }}
         RCLONE_CLIENT_SECRET: ${{ secrets.RCLONE_CLIENT_SECRET }}
