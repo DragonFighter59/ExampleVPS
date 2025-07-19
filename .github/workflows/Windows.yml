@@ -1,66 +1,109 @@
-name: Minecraft Remote Desktop with Google Drive Sync
+name: Minecraft Google Drive Sync
 on: [push]
 
 jobs:
-  remote-desktop:
+  sync-minecraft:
     runs-on: windows-latest
 
     steps:
-    # 1. Setup base
+    # 1. Setup iniziale
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2. Install and configure rclone 
-    - name: Install and configure rclone
+    # 2. Installazione rclone
+    - name: Install rclone
       shell: powershell
       run: |
-        # 1. Installazione
+        # Download e installazione
         Invoke-WebRequest "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile rclone.zip
-        Expand-Archive rclone.zip -DestinationPath rclone-temp
-        Copy-Item "rclone-temp\rclone-*-windows-amd64\rclone.exe" "C:\Windows\System32\"
+        Expand-Archive -Path rclone.zip -DestinationPath rclone-temp
+        Copy-Item -Path "rclone-temp\rclone-*-windows-amd64\rclone.exe" -Destination "C:\Windows\System32\"
+        Remove-Item -Recurse -Force rclone-temp, rclone.zip
 
-        # 2. Configurazione con validazione JSON
+    # 3. Configurazione Google Drive (con validazione JSON)
+    - name: Configure Google Drive
+      shell: powershell
+      run: |
+        # Crea directory configurazione
         $configDir = "$env:APPDATA\rclone"
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
 
-        # Formatta correttamente il token
-        $validToken = $env:RCLONE_TOKEN -replace "'", '"' -replace "True", "true" -replace "False", "false"
-        
-        @"
-        [gdrive]
-        type = drive
-        client_id = $env:RCLONE_CLIENT_ID
-        client_secret = $env:RCLONE_CLIENT_SECRET
-        token = $validToken
-        "@ | Out-File "$configDir\rclone.conf" -Encoding utf8
+        # Valida il token JSON
+        try {
+            $tokenObj = $env:RCLONE_TOKEN | ConvertFrom-Json
+            Write-Host "✅ Token JSON valido"
+        } catch {
+            Write-Host "❌ ERRORE: Token JSON non valido"
+            exit 1
+        }
 
-        # 3. Verifica connessione
-        Write-Host "=== VERIFICA CREDENZIALI ==="
-        rclone about gdrive: --config "$configDir\rclone.conf" --log-level DEBUG
+        # Crea file di configurazione con escape corretto
+        $configContent = @"
+[gdrive]
+type = drive
+client_id = $($env:RCLONE_CLIENT_ID)
+client_secret = $($env:RCLONE_CLIENT_SECRET)
+token = $($env:RCLONE_TOKEN -replace '"', '\"')
+"@
+        $configPath = "$configDir\rclone.conf"
+        $configContent | Out-File -FilePath $configPath -Encoding utf8
+
+        # Verifica visiva
+        Write-Host "=== File di configurazione generato ==="
+        Get-Content $configPath
       env:
         RCLONE_CLIENT_ID: ${{ secrets.RCLONE_CLIENT_ID }}
         RCLONE_CLIENT_SECRET: ${{ secrets.RCLONE_CLIENT_SECRET }}
         RCLONE_TOKEN: ${{ secrets.RCLONE_TOKEN }}
 
-    # 3. Setup Minecraft folder and initial sync
+    # 4. Verifica connessione
+    - name: Test Google Drive connection
+      shell: powershell
+      run: |
+        $configPath = "$env:APPDATA\rclone\rclone.conf"
+        
+        # Test connessione con log dettagliato
+        rclone about gdrive: --config $configPath --log-level DEBUG --dump bodies 2>&1 | Tee-Object -FilePath "connection.log"
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "=== LOG ERRORI ==="
+            Get-Content "connection.log"
+            exit 1
+        }
+        Write-Host "✅ Connessione a Google Drive riuscita"
+
+    # 5. Preparazione cartella Minecraft
     - name: Setup Minecraft folder
       shell: powershell
       run: |
         $desktopPath = "C:\Users\runneradmin\Desktop\Minecraft"
         
-        # 1. Crea struttura locale
-        New-Item -ItemType Directory -Path "$desktopPath" -Force | Out-Null
-        "File generato $(Get-Date)" | Out-File "$desktopPath\README.txt" -Encoding utf8
+        # Crea cartella locale
+        New-Item -ItemType Directory -Path $desktopPath -Force | Out-Null
+        "File generato automaticamente $(Get-Date)" | Out-File "$desktopPath\README.txt" -Encoding utf8
 
-        # 2. Sincronizzazione iniziale
+        Write-Host "=== Struttura cartella ==="
+        Get-ChildItem -Path $desktopPath -Recurse | Format-Table FullName, Length
+
+    # 6. Sincronizzazione iniziale
+    - name: Initial sync to Google Drive
+      shell: powershell
+      run: |
+        $configPath = "$env:APPDATA\rclone\rclone.conf"
+        $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        
+        # Crea cartella remota
+        rclone mkdir gdrive:MinecraftBackup --config $configPath 2>$null || Write-Host "ℹ️ Cartella remota già esistente"
+
+        # Sincronizzazione con ritentativi
         $maxRetries = 3
         $retryCount = 0
         
         while ($retryCount -lt $maxRetries) {
             try {
                 Write-Host "🔄 Tentativo $($retryCount + 1) di $maxRetries"
-                rclone sync "$desktopPath" gdrive:MinecraftBackup `
-                    --config "$env:APPDATA\rclone\rclone.conf" `
+                rclone sync "$localPath" gdrive:MinecraftBackup `
+                    --config $configPath `
                     --progress `
                     --create-empty-src-dirs `
                     --drive-acknowledge-abuse `
@@ -78,50 +121,56 @@ jobs:
         }
         Write-Host "✅ Sincronizzazione iniziale completata"
 
-    # 4. Setup Remote Desktop
+    # 7. Setup Remote Desktop
     - name: Configure RDP access
       shell: powershell
       run: |
-        # Enable RDP
+        # Abilita RDP
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # Set password
+        # Imposta password
         $user = "runneradmin"
         $password = ConvertTo-SecureString $env:WIN_PASS -AsPlainText -Force
         Set-LocalUser -Name $user -Password $password
       env:
         WIN_PASS: ${{ secrets.WIN_PASS }}
 
-    # 5. Ngrok tunnel
-    - name: Setup ngrok
+    # 8. Configurazione ngrok
+    - name: Setup ngrok tunnel
       shell: powershell
       run: |
-        # Download and extract
-        Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-        Expand-Archive ngrok.zip
+        # Download e installazione
+        Invoke-WebRequest "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile ngrok.zip
+        Expand-Archive ngrok.zip -DestinationPath .
         
-        # Auth and start
-        .\ngrok\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
-        Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+        # Autenticazione e avvio
+        .\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
+        Start-Process -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
       env:
         NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
-    # 6. Show connection info
-    - name: Get RDP connection details
+    # 9. Mostra informazioni connessione
+    - name: Show RDP connection info
       shell: powershell
       run: |
-        Start-Sleep -Seconds 10
-        $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
-        $rdpUrl = $tunnels.tunnels[0].public_url -replace "tcp://", ""
-        Write-Host "=== RDP CONNECTION INFO ==="
-        Write-Host "Address: $($rdpUrl.Split(':')[0])"
-        Write-Host "Port: $($rdpUrl.Split(':')[1])"
-        Write-Host "Username: runneradmin"
-        Write-Host "Password: ${{ secrets.WIN_PASS }}"
+        Start-Sleep -Seconds 15  # Attendi che ngrok si avvii
+        try {
+            $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -ErrorAction Stop
+            $rdpUrl = $tunnels.tunnels[0].public_url -replace "tcp://", ""
+            Write-Host "=== INFORMAZIONI RDP ==="
+            Write-Host "Indirizzo: $($rdpUrl.Split(':')[0])"
+            Write-Host "Porta: $($rdpUrl.Split(':')[1])"
+            Write-Host "Username: runneradmin"
+            Write-Host "Password: ${{ secrets.WIN_PASS }}"
+        } catch {
+            Write-Host "❌ Impossibile ottenere l'URL ngrok"
+            Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
+            exit 1
+        }
 
-    # 7. Wait for shutdown signal
-    - name: Wait for termination
+    # 10. Attesa shutdown
+    - name: Wait for shutdown signal
       shell: powershell
       run: |
         $maxDuration = 6 * 60 * 60  # 6 ore in secondi
@@ -131,38 +180,48 @@ jobs:
         while ($elapsed -lt $maxDuration) {
             # Controllo file locale
             if (Test-Path "C:\Users\runneradmin\Desktop\stopVPS.inf") {
-                Write-Host "Found shutdown file"
+                Write-Host "🛑 Trovato file di shutdown"
                 break
             }
             
             # Controllo remoto (esempio con Pastebin)
             try {
                 $content = (Invoke-WebRequest -Uri "https://pastebin.com/raw/qUKECE5Y" -UseBasicParsing).Content
-                if ($content -match "stop") { break }
-            } catch { Write-Host "Pastebin check failed: $_" }
+                if ($content -match "stop") { 
+                    Write-Host "🛑 Ricevuto segnale di stop remoto"
+                    break 
+                }
+            } catch { 
+                Write-Host "⚠️ Errore controllo remoto: $_" 
+            }
             
             Start-Sleep -Seconds $interval
             $elapsed += $interval
-            Write-Host "Elapsed: $elapsed/$maxDuration seconds"
+            Write-Host "⏳ Tempo trascorso: $elapsed/$maxDuration secondi"
         }
 
-    # 8. Final upload and sync to Google Drive
+    # 11. Sincronizzazione finale
     - name: Final sync to Google Drive
       if: always()
       shell: powershell
       run: |
-        # Stop ngrok
+        # Interrompi ngrok
         Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
         
-        # Sync Minecraft folder
+        # Sincronizza cartella Minecraft
+        $configPath = "$env:APPDATA\rclone\rclone.conf"
         $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        
         if (Test-Path $localPath) {
+            Write-Host "🔄 Sincronizzazione finale in corso..."
             rclone sync "$localPath" gdrive:MinecraftBackup `
-                --config "$env:APPDATA\rclone\rclone.conf" `
+                --config $configPath `
                 --progress `
                 --create-empty-src-dirs `
                 --log-level INFO
-            Write-Host "✅ Final sync completed"
+            
+            Write-Host "=== Stato finale cartella ==="
+            Get-ChildItem -Path $localPath -Recurse | Format-Table FullName, Length, LastWriteTime
         } else {
-            Write-Host "⚠️ Minecraft folder not found, skipping sync"
+            Write-Host "⚠️ Cartella Minecraft non trovata, skip upload"
         }
