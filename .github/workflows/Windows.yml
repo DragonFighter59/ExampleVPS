@@ -39,12 +39,12 @@ jobs:
 
         # Crea file di configurazione con escape corretto
         $configContent = @"
-[gdrive]
-type = drive
-client_id = $($env:RCLONE_CLIENT_ID)
-client_secret = $($env:RCLONE_CLIENT_SECRET)
-token = $($env:RCLONE_TOKEN -replace '"', '\"')
-"@
+        [gdrive]
+        type = drive
+        client_id = $($env:RCLONE_CLIENT_ID)
+        client_secret = $($env:RCLONE_CLIENT_SECRET)
+        token = $($env:RCLONE_TOKEN -replace '"', '\"')
+        "@
         $configPath = "$configDir\rclone.conf"
         $configContent | Out-File -FilePath $configPath -Encoding utf8
 
