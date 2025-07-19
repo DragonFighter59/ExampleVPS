@@ -35,6 +35,8 @@ jobs:
         token = $env:RCLONE_TOKEN
         "@ | Out-File -FilePath "$configDir\rclone.conf" -Encoding utf8
         
+        Write-Host "Completato con successo: Ora la verifica"
+
         # 4. Verifica
         rclone version
         rclone --config "$configDir\rclone.conf" about gdrive:
