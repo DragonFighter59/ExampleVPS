@@ -146,7 +146,7 @@ jobs:
             Write-Host "Elapsed: $elapsed/$maxDuration seconds"
         }
 
-    # 8. Final sync to Google Drive
+    # 8. Final upload and sync to Google Drive
     - name: Final sync to Google Drive
       if: always()
       shell: powershell
