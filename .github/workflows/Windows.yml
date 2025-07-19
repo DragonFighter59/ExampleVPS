@@ -46,13 +46,52 @@ jobs:
         RCLONE_TOKEN: ${{ secrets.RCLONE_TOKEN }}
 
     # 3. Download Minecraft da Google Drive
-    - name: Sync from Google Drive
-      continue-on-error: true
+    - name: Ensure Minecraft folder exists and sync
       shell: powershell
       run: |
-        $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
-        rclone sync gdrive:MinecraftBackup $localPath --create-empty-src-dirs --progress
-        Get-ChildItem $localPath | Format-Table Name, Length, LastWriteTime
+        # 1. Crea cartella Desktop se non esiste
+        $desktopPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        if (-not (Test-Path $desktopPath)) {
+            Write-Host "🛠️ Creazione cartella Desktop..."
+            New-Item -ItemType Directory -Path $desktopPath -Force | Out-Null
+            # Aggiungi file vuoto per evitare errori rclone
+            New-Item -ItemType File -Path "$desktopPath\.keep" -Force | Out-Null
+        }
+    
+        # 2. Crea cartella remota su Google Drive se non esiste
+        try {
+            rclone mkdir gdrive:MinecraftBackup --config "$env:APPDATA\rclone\rclone.conf"
+            Write-Host "✅ Cartella remota pronta"
+        } catch {
+            Write-Host "ℹ️ Cartella remota già esistente o errore non critico"
+        }
+    
+        # 3. Sincronizzazione con controllo errori
+        if (Test-Path $desktopPath) {
+            Write-Host "🔄 Sincronizzazione in corso..."
+            rclone sync "$desktopPath" gdrive:MinecraftBackup `
+                --config "$env:APPDATA\rclone\rclone.conf" `
+                --progress `
+                --create-empty-src-dirs `
+                --log-level INFO `
+                --drive-use-trash=false `
+                --stats 5s
+            
+            Write-Host "✅ Sincronizzazione completata"
+            Get-ChildItem $desktopPath | Format-Table Name, Length, LastWriteTime
+        } else {
+            Write-Host "❌ ERRORE: Cartella Desktop non creata"
+            exit 1
+        }
+      env:
+        RCLONE_CONFIG: "$env:APPDATA\rclone\rclone.conf"    
+    #- name: Sync from Google Drive
+    #  continue-on-error: true
+    #  shell: powershell
+    #  run: |
+    #    $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+    #    rclone sync gdrive:MinecraftBackup $localPath --create-empty-src-dirs --progress
+    #    Get-ChildItem $localPath | Format-Table Name, Length, LastWriteTime
 
     # 4. Setup Remote Desktop
     - name: Configure RDP access
@@ -123,15 +162,32 @@ jobs:
         }
 
     # 8. Cleanup and sync back to Google Drive
-    - name: Final sync to Google Drive
-      if: always()
+    - name: Sync to Google Drive
       shell: powershell
       run: |
         # Stop ngrok
         Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force
-        
-        # Sync Minecraft folder
+    
+        # Configura il percorso locale
         $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
+        
+        # Crea la cartella remota se non esiste (con autenticazione esplicita)
         if (Test-Path $localPath) {
-            rclone sync $localPath gdrive:MinecraftBackup --progress --create-empty-src-dirs
+            # Verifica l'autenticazione
+            rclone about gdrive: --config "$env:APPDATA\rclone\rclone.conf"
+            
+            # Crea la cartella remota (se non esiste)
+            rclone mkdir gdrive:MinecraftBackup --config "$env:APPDATA\rclone\rclone.conf"
+            
+            # Sincronizzazione con log dettagliato
+            rclone sync "$localPath" gdrive:MinecraftBackup `
+                --config "$env:APPDATA\rclone\rclone.conf" `
+                --progress `
+                --create-empty-src-dirs `
+                --log-level DEBUG `
+                --drive-acknowledge-abuse
+        } else {
+            Write-Host "Cartella locale non trovata, skip upload"
         }
+      env:
+        RCLONE_CONFIG: "$env:APPDATA\rclone\rclone.conf"
