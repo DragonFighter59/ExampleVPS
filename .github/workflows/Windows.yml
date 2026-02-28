@@ -107,36 +107,51 @@ jobs:
       run: |
         $configPath = "$env:APPDATA\rclone\rclone.conf"
         $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
-        
-        # Crea cartella remota
-        rclone mkdir gdrive:MinecraftBackup --config $configPath 2>$null
-        if ($LASTEXITCODE -ne 0) { Write-Host "Info: Cartella remota gia esistente (o errore mkdir)." }
 
-        # Sincronizzazione con ritentativi
+        if (!(Test-Path $configPath)) {
+          Write-Host "WARN: rclone.conf non trovato, skip sync iniziale"
+          exit 0
+        }
+
+        if (!(Test-Path $localPath)) {
+          Write-Host "WARN: Cartella locale $localPath non trovata, skip sync iniziale"
+          exit 0
+        }
+
+        # Crea cartella remota (non fallire se esiste)
+        rclone mkdir gdrive:MinecraftBackup --config $configPath 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Host "INFO: mkdir potrebbe non essere riuscito (probabilmente la cartella esiste già)" }
+
         $maxRetries = 3
         $retryCount = 0
-        
-        while ($retryCount -lt $maxRetries) {
-            try {
-                Write-Host "🔄 Tentativo $($retryCount + 1) di $maxRetries"
-                rclone sync "$localPath" gdrive:MinecraftBackup `
-                    --config $configPath `
-                    --progress `
-                    --create-empty-src-dirs `
-                    --drive-acknowledge-abuse `
-                    --stats 5s `
-                    --log-level INFO
-                break
-            } catch {
-                $retryCount++
-                if ($retryCount -eq $maxRetries) {
-                    Write-Host "❌ Sincronizzazione fallita dopo $maxRetries tentativi"
-                    exit 1
-                }
-                Start-Sleep -Seconds 10
+        $success = $false
+
+        while ($retryCount -lt $maxRetries -and -not $success) {
+          $retryCount++
+          Write-Host ("Attempt {0} of {1}" -f $retryCount, $maxRetries)
+
+          rclone sync "$localPath" gdrive:MinecraftBackup `
+            --config $configPath `
+            --progress `
+            --create-empty-src-dirs `
+            --drive-acknowledge-abuse `
+            --stats 5s `
+            --log-level INFO
+
+          if ($LASTEXITCODE -eq 0) {
+            $success = $true
+            Write-Host "OK: Sync riuscita"
+          } else {
+            Write-Host ("WARN: Sync fallita (exit {0})" -f $LASTEXITCODE)
+            if ($retryCount -lt $maxRetries) {
+              Write-Host "Attendo 10 secondi prima del retry..."
+              Start-Sleep -Seconds 10
+            } else {
+              Write-Host "WARN: Sincronizzazione fallita dopo $maxRetries tentativi (ma continuo perché continue-on-error: true)"
             }
+          }
         }
-        Write-Host "✅ Sincronizzazione iniziale completata"
+
 
     # 7. Setup Remote Desktop
     - name: Configure RDP access
