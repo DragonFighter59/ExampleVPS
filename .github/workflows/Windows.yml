@@ -223,5 +223,5 @@ jobs:
             Write-Host "=== Stato finale cartella ==="
             Get-ChildItem -Path $localPath -Recurse | Format-Table FullName, Length, LastWriteTime
         } else {
-            Write-Host "⚠️ Cartella Minecraft non trovata, skip upload"
+            Write-Host "⚠️ Cartella Minecraft non trovata, skip upload save"
         }
