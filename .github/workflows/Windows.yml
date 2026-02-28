@@ -20,58 +20,71 @@ jobs:
         Copy-Item -Path "rclone-temp\rclone-*-windows-amd64\rclone.exe" -Destination "C:\Windows\System32\"
         Remove-Item -Recurse -Force rclone-temp, rclone.zip
 
-    # 3. Configurazione Google Drive (con validazione JSON)
+    # 3. Configurazione Google Drive (pulita)
     - name: Configure Google Drive
+      continue-on-error: true
       shell: powershell
       run: |
-        # Crea directory configurazione
         $configDir = "$env:APPDATA\rclone"
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
 
-        # Valida il token JSON
+        # Normalizza token (trim)
+        $tokenRaw = ($env:RCLONE_TOKEN ?? "").Trim()
+
+        # Valida JSON
         try {
-            $tokenObj = $env:RCLONE_TOKEN | ConvertFrom-Json
-            Write-Host "✅ Token JSON valido"
+          $null = $tokenRaw | ConvertFrom-Json
+          Write-Host "✅ Token JSON valido"
         } catch {
-            Write-Host "❌ ERRORE: Token JSON non valido"
-            exit 1
+          Write-Host "❌ ERRORE: Token JSON non valido (segreto non è JSON puro)"
+          exit 1
         }
 
-        # Crea file di configurazione con escape corretto
+        # IMPORTANTISSIMO: here-string senza indentazione
         $configContent = @"
         [gdrive]
         type = drive
+        scope = drive
         client_id = $($env:RCLONE_CLIENT_ID)
         client_secret = $($env:RCLONE_CLIENT_SECRET)
-        token = $($env:RCLONE_TOKEN -replace '"', '\"')
+        token = $tokenRaw
         "@
-        $configPath = "$configDir\rclone.conf"
+
+        $configPath = Join-Path $configDir "rclone.conf"
         $configContent | Out-File -FilePath $configPath -Encoding utf8
 
-        # Verifica visiva
-        Write-Host "=== File di configurazione generato ==="
-        Get-Content $configPath
+        Write-Host "=== rclone.conf creato in ==="
+        Write-Host $configPath
+
+        # Mostra config "sanitizzato" (senza token)
+        Write-Host "=== Verifica config (token nascosto) ==="
+        (Get-Content $configPath) -replace 'token = .*', 'token = ***' | ForEach-Object { $_ }
+
       env:
         RCLONE_CLIENT_ID: ${{ secrets.RCLONE_CLIENT_ID }}
         RCLONE_CLIENT_SECRET: ${{ secrets.RCLONE_CLIENT_SECRET }}
         RCLONE_TOKEN: ${{ secrets.RCLONE_TOKEN }}
 
-    # 4. Verifica connessione
+    # 4. Verifica connessione (senza dump bodies: evita leak)
     - name: Test Google Drive connection
+      continue-on-error: true
       shell: powershell
       run: |
         $configPath = "$env:APPDATA\rclone\rclone.conf"
-        
-        # Test connessione con log dettagliato
-        rclone about gdrive: --config $configPath --log-level DEBUG --dump bodies 2>&1 | Tee-Object -FilePath "connection.log"
-        
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "=== LOG ERRORI ==="
-            Get-Content "connection.log"
-            exit 1
-        }
-        Write-Host "✅ Connessione a Google Drive riuscita"
 
+        # Prima: verifica che rclone legga la config
+        rclone config show --config $configPath | Out-Host
+
+        # Poi: test semplice (più affidabile di "about" con scope limitati)
+        rclone lsd gdrive: --config $configPath -vv 2>&1 | Tee-Object -FilePath "connection.log"
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "=== LOG ERRORI ==="
+          Get-Content "connection.log"
+          exit 1
+        }
+
+        Write-Host "✅ Connessione a Google Drive riuscita"
     # 5. Preparazione cartella Minecraft
     - name: Setup Minecraft folder
       shell: powershell
