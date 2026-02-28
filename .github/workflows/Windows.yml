@@ -77,7 +77,7 @@ jobs:
           exit 0
         }
     
-        rclone lsd gdrive: --config $configPath -vv 2>&1 | Tee-Object -FilePath "connection.log"
+        rclone lsf gdrive:MinecraftBackup --config $configPath -vv 2>&1 | Tee-Object -FilePath "connection.log"
     
         if ($LASTEXITCODE -ne 0) {
           Write-Host "WARN: Connessione Google Drive fallita, continuo comunque"
