@@ -87,6 +87,7 @@ jobs:
         Write-Host "✅ Connessione a Google Drive riuscita"
     # 5. Preparazione cartella Minecraft
     - name: Setup Minecraft folder
+      continue-on-error: true
       shell: powershell
       run: |
         $desktopPath = "C:\Users\runneradmin\Desktop\Minecraft"
@@ -100,6 +101,7 @@ jobs:
 
     # 6. Sincronizzazione iniziale
     - name: Initial sync to Google Drive
+      continue-on-error: true
       shell: powershell
       run: |
         $configPath = "$env:APPDATA\rclone\rclone.conf"
