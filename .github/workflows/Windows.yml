@@ -224,7 +224,7 @@ jobs:
                     break 
                 }
             } catch { 
-                Write-Host "⚠️ Errore controllo remoto: $_" 
+                Write-Host "[⚠️] Errore controllo remoto: $_" 
             }
             
             Start-Sleep -Seconds $interval
