@@ -36,7 +36,7 @@ jobs:
         if ($env:RCLONE_TOKEN) { $tokenRaw = $env:RCLONE_TOKEN.Trim() }
 
         if ([string]::IsNullOrWhiteSpace($tokenRaw)) {
-          Write-Host "ERROR: RCLONE_TOKEN is empty - skipping rclone config creation"
+          Write-Host "ERROR: RCLONE_TOKEN is empty - skipping rclone config creation!"
           exit 0
         }
 
