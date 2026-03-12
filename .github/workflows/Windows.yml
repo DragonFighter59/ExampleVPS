@@ -245,7 +245,7 @@ jobs:
         $localPath = "C:\Users\runneradmin\Desktop\Minecraft"
         
         if (Test-Path $localPath) {
-            Write-Host "🔄 Sincronizzazione finale in corso..."
+            Write-Host "🔄 Sincronizzazione finale in corso ..."
             rclone sync "$localPath" gdrive:MinecraftBackup `
                 --config $configPath `
                 --progress `
